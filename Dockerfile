@@ -103,9 +103,9 @@ RUN make install
 # Use a minimal base image or even scratch if statically linked
 FROM alpine:3.23.3 AS runtime
 
-ENV PREFIX=/hyperscan-toolchain
+ENV TOOLCHAIN=/opt/hyperscan-toolchain
 
 WORKDIR /
 
 # Copy the compiled binary from the builder stage
-COPY --from=builder $PREFIX .
+COPY --from=builder /opt/hyperscan-toolchain $TOOLCHAIN
