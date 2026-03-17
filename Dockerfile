@@ -9,7 +9,7 @@ RUN apk update && apk add \
 ENV NAME=hyperscan-toolchain
 ENV WORKING_DIR=/working-dir
 ENV TARGET=score-elf
-ENV PREFIX=/hyperscan-toolchain
+ENV PREFIX=/opt/hyperscan-toolchain
 
 ENV PATH=$PREFIX/bin:$PATH
 ENV BINUTILS_VERSION=2.35.2
