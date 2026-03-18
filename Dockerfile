@@ -104,6 +104,7 @@ RUN make install
 FROM alpine:3.23.3 AS runtime
 
 ENV TOOLCHAIN=/opt/hyperscan-toolchain
+ENV PATH=$TOOLCHAIN/bin:$PATH
 
 WORKDIR /
 
