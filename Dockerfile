@@ -110,3 +110,6 @@ ENV PATH=$TOOLCHAIN/bin:$PATH
 COPY --from=builder /opt/hyperscan-toolchain $TOOLCHAIN
 
 WORKDIR /workspace
+
+# Start container with sh
+CMD ["/bin/sh"]
