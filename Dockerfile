@@ -106,6 +106,11 @@ FROM alpine:3.23.3 AS runtime
 ENV TOOLCHAIN=/opt/hyperscan-toolchain
 ENV PATH=$TOOLCHAIN/bin:$PATH
 
+# Install runtime tools
+RUN apk add --no-cache \
+    make \
+    cmake
+
 # Copy the compiled binary from the builder stage
 COPY --from=builder /opt/hyperscan-toolchain $TOOLCHAIN
 
