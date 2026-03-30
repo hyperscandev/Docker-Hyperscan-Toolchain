@@ -6,7 +6,8 @@
   },
   "workspaceFolder": "/workspace",
   "mounts": [
-    "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached"
+    "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+    "source=C:\\score-sdk,target=/score-sdk,type=bind,consistency=cached"
   ],
   "remoteUser": "root",
   "customizations": {
