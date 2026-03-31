@@ -10,6 +10,10 @@
     "source=C:\\score-sdk,target=/score-sdk,type=bind,consistency=cached"
   ],
   "remoteUser": "root",
+  "containerEnv": {
+  "C_INCLUDE_PATH": "/score-sdk/include",
+  "LIBRARY_PATH": "/score-sdk/lib"
+},
   "customizations": {
     "vscode": {
       "extensions": [
