@@ -1,0 +1,42 @@
+# DejaGnu board configuration for score-elf (SCORE7, compile-only)
+#
+# This board config performs compilation tests only — no execution.
+# Place this file in one of:
+#   - gcc/testsuite/lib/  (within the GCC source tree), or
+#   - /usr/share/dejagnu/baseboards/
+#
+# Usage:
+#   make check-gcc RUNTESTFLAGS="--target_board=score-elf"
+
+load_generic_config "sim"
+
+# Basic board identity
+set_board_info target_install {score-elf}
+
+# Toolchain binaries
+set_board_info assembler    {score-elf-as}
+set_board_info linker       {score-elf-ld}
+set_board_info c_compiler   {score-elf-gcc}
+set_board_info cxx_compiler {score-elf-g++}
+
+# Compiler flags for SCORE7 32-bit
+set_board_info compiler_flags   {-march=score7 -msoft-float}
+set_board_info cxxflags         {}
+set_board_info ldflags          {}
+
+# No execution — tell DejaGnu not to try to run binaries
+set_board_info noargs           1
+set_board_info no_long_long     0
+set_board_info run_id           ""
+
+# Disable features that require execution
+set_board_info needs_status_wrapper 0
+set_board_info use_running_board    0
+
+# Object format
+set_board_info obj_format "elf"
+
+# Prevent DejaGnu from attempting to connect or spawn a simulator
+proc ${board}_connect { args } { return 1 }
+proc ${board}_disconnect { args } { return 1 }
+proc ${board}_spawn { args } { return 1 }
