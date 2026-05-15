@@ -1,120 +1,195 @@
-##############################
-# Stage 1: Build Stage
-#############################
-FROM alpine:3.23.3 AS builder
+FROM alpine:3.23.3 AS builder-base
 
-RUN apk update && apk add \
-    bash-completion alpine-sdk zlib-dev xz texinfo curl
+ARG BINUTILS_VERSION=2.46.0
+ARG GCC_VERSION=14.3.0
+ARG NEWLIB_VERSION=4.6.0.20260123
 
-ENV NAME=hyperscan-toolchain
-ENV WORKING_DIR=/working-dir
-ENV TARGET=score-elf
-ENV PREFIX=/opt/hyperscan-toolchain
+ENV TARGET=score-elf \
+    PREFIX=/opt/score-toolchain \
+    BINUTILS_VERSION=${BINUTILS_VERSION} \
+    GCC_VERSION=${GCC_VERSION} \
+    NEWLIB_VERSION=${NEWLIB_VERSION} \
+    PATH=/opt/score-toolchain/bin:/usr/local/bin:${PATH}
 
-ENV PATH=$PREFIX/bin:$PATH
-ENV BINUTILS_VERSION=2.46.0
-ENV GCC_VERSION=14.3.0
-ENV NEWLIB_VERSION=4.6.0.20260123
-ENV THREADS=8
-
-WORKDIR $WORKING_DIR
-
-# Download sources
-RUN curl -C - --progress-bar \
-    https://ftp.gnu.org/gnu/binutils/binutils-$BINUTILS_VERSION.tar.bz2 \
-    -o binutils-$BINUTILS_VERSION.tar.bz2
-
-RUN curl -C - --progress-bar \
-    https://ftp.gnu.org/gnu/gcc/gcc-$GCC_VERSION/gcc-$GCC_VERSION.tar.xz \
-    -o gcc-$GCC_VERSION.tar.xz
-
-RUN curl -C - --progress-bar \
-    ftp://sourceware.org/pub/newlib/newlib-$NEWLIB_VERSION.tar.gz \
-    -o newlib-$NEWLIB_VERSION.tar.gz
-
-# Download patches
-RUN curl -L --progress-bar \
-    https://raw.githubusercontent.com/LiraNuna/hyperscan-emulator/master/tools/binutils-patch.diff \
-    -o binutils-patch.diff
-
-RUN curl -L --progress-bar \
-    https://raw.githubusercontent.com/LiraNuna/hyperscan-emulator/master/tools/gcc-patch.diff \
-    -o gcc-patch.diff
-
-RUN curl -L --progress-bar \
-    https://raw.githubusercontent.com/LiraNuna/hyperscan-emulator/refs/heads/master/tools/newlib-patch.diff \
-    -o newlib-patch.diff
-
-# Extract
-RUN tar xf binutils-$BINUTILS_VERSION.tar.bz2
-RUN tar xf gcc-$GCC_VERSION.tar.xz
-RUN tar xf newlib-$NEWLIB_VERSION.tar.gz
-
-# Patch toolchain components
-WORKDIR $WORKING_DIR/binutils-$BINUTILS_VERSION
-RUN patch -p0 < ../binutils-patch.diff
-
-WORKDIR $WORKING_DIR/gcc-$GCC_VERSION
-RUN patch -p0 < ../gcc-patch.diff
-
-WORKDIR $WORKING_DIR/newlib-$NEWLIB_VERSION
-RUN patch -l -p0 < ../newlib-patch.diff
-
-# Compiling binutils...
-WORKDIR $WORKING_DIR/build-binutils
-RUN $WORKING_DIR/binutils-$BINUTILS_VERSION/configure --target=$TARGET --prefix=$PREFIX --disable-nls --disable-multilib --disable-static  -v
-RUN make -j$THREADS all
-RUN make install
-
-# Compiling first stage GCC...
-WORKDIR $WORKING_DIR/gcc-$GCC_VERSION
-RUN ./contrib/download_prerequisites
-
-WORKDIR $WORKING_DIR/build-gcc
-RUN $WORKING_DIR/gcc-$GCC_VERSION/configure --target=$TARGET --prefix=$PREFIX --without-headers --with-newlib --enable-obsolete \
-    --disable-libgomp --disable-libmudflap --disable-libssp --disable-libatomic --disable-libitm --disable-libsanitizer \
-    --disable-libmpc --disable-libquadmath --disable-threads --disable-multilib --disable-target-zlib --with-system-zlib \
-    --disable-shared --disable-nls --disable-lto --disable-libstdcxx --enable-languages=c --with-gnu-as --with-gnu-ld -v
-
-RUN make -j$THREADS all-gcc all-target-libgcc
-RUN make install-gcc install-target-libgcc
-
-# Compiling Newlib...
-WORKDIR $WORKING_DIR/build-newlib
-RUN $WORKING_DIR/newlib-$NEWLIB_VERSION/configure --target=$TARGET --prefix=$PREFIX \
-    --with-gnu-as --with-gnu-ld --disable-nls --disable-multilib --disable-newlib-supplied-syscalls
-
-RUN make all -j$THREADS
-RUN make install
-
-# Compiling second stage GCC (C++)...
-WORKDIR $WORKING_DIR/build-gcc-stage2
-RUN $WORKING_DIR/gcc-$GCC_VERSION/configure --target=$TARGET --prefix=$PREFIX --with-newlib --enable-obsolete \
-    --disable-libgomp --disable-libmudflap --disable-libssp --disable-libatomic --disable-libitm --disable-libsanitizer \
-    --disable-libmpc --disable-libquadmath --disable-threads --disable-multilib --disable-target-zlib --with-system-zlib \
-    --disable-shared --disable-nls --disable-lto --enable-languages=c,c++ --with-gnu-as --with-gnu-ld -v
-
-RUN make -j$THREADS all
-RUN make install
-
-##############################
-# Stage 2: Runtime Stage
-#############################
-# Use a minimal base image or even scratch if statically linked
-FROM alpine:3.23.3 AS runtime
-
-ENV TOOLCHAIN=/opt/hyperscan-toolchain
-ENV PATH=$TOOLCHAIN/bin:$PATH
-
-# Install runtime tools
 RUN apk add --no-cache \
+    alpine-sdk \
+    bison \
+    flex \
+    texinfo \
+    gawk \
+    patch \
+    curl \
+    ca-certificates \
+    xz \
+    bzip2 \
+    gzip \
+    tar \
     make \
-    cmake
+    cmake \
+    ninja-build \
+    python3 \
+    git \
+    automake \
+    libtool \
+    m4 \
+    perl \
+    help2man \
+    zlib-dev \
+    file \
+    pkgconfig \
+    rsync \
+    vim \
+    less
 
-# Copy the compiled binary from the builder stage
-COPY --from=builder /opt/hyperscan-toolchain $TOOLCHAIN
+# Force unversioned autotools commands to use 2.69.
+RUN curl -O http://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.gz; \
+    tar zxvf autoconf-2.69.tar.gz; \
+    cd autoconf-2.69; \
+    ./configure; \
+    make; \
+    make install
+
+FROM builder-base AS builder
+
+WORKDIR /build
+
+COPY patches /patches
+
+RUN set -eux; \
+    curl -L --fail "https://ftp.gnu.org/gnu/binutils/binutils-${BINUTILS_VERSION}.tar.bz2" -o binutils.tar.bz2; \
+    curl -L --fail "https://ftp.gnu.org/gnu/gcc/gcc-${GCC_VERSION}/gcc-${GCC_VERSION}.tar.xz" -o gcc.tar.xz; \
+    curl -L --fail "https://sourceware.org/pub/newlib/newlib-${NEWLIB_VERSION}.tar.gz" -o newlib.tar.gz; \
+    tar xf binutils.tar.bz2; \
+    tar xf gcc.tar.xz; \
+    tar xf newlib.tar.gz; \
+    cd "/build/gcc-${GCC_VERSION}"; \
+    ./contrib/download_prerequisites
+
+RUN set -eux; \
+    cd "/build/binutils-${BINUTILS_VERSION}"; \
+    patch --dry-run -p0 < /patches/binutils-patch.diff; \
+    patch -p0 < /patches/binutils-patch.diff
+
+RUN set -eux; \
+    cd "/build/gcc-${GCC_VERSION}"; \
+    patch --dry-run -p0 < /patches/gcc-patch.diff; \
+    patch -p0 < /patches/gcc-patch.diff; \
+    grep -n "score-\\*-elf" gcc/config.gcc; \
+    test -f gcc/config/score/score.cc; \
+    grep -n "score-\\*-elf" libgcc/config.host
+
+RUN set -eux; \
+    cd "/build/newlib-${NEWLIB_VERSION}"; \
+    patch --dry-run -p1 < /patches/newlib-patch.diff; \
+    patch -p1 < /patches/newlib-patch.diff; \
+    cd newlib; \
+    [ -f configure.ac ] && autoreconf -fi
+
+RUN set -eux; \
+    mkdir -p /build/build-binutils; \
+    cd /build/build-binutils; \
+    ../binutils-${BINUTILS_VERSION}/configure \
+        --target="${TARGET}" \
+        --prefix="${PREFIX}" \
+        --disable-nls \
+        --disable-multilib \
+        --disable-static; \
+    make -j"$(nproc)"; \
+    make install
+
+RUN set -eux; \
+    mkdir -p /build/build-gcc-stage1; \
+    cd /build/build-gcc-stage1; \
+    ../gcc-${GCC_VERSION}/configure \
+        --target="${TARGET}" \
+        --prefix="${PREFIX}" \
+        --with-sysroot=${PREFIX}/${TARGET} \
+        --without-headers \
+        --with-newlib \
+        --enable-obsolete \
+        --disable-libada \
+        --disable-libgomp \
+        --disable-libmudflap \
+        --disable-libssp \
+        --disable-libatomic \
+        --disable-libitm \
+        --disable-libsanitizer \
+        --disable-libquadmath \
+        --disable-threads \
+        --disable-multilib \
+        --disable-target-zlib \
+        --with-system-zlib \
+        --disable-shared \
+        --disable-nls \
+        --disable-lto \
+        --disable-libstdcxx-pch \
+        --enable-languages=c,c++ \
+        --with-gnu-as \
+        --with-gnu-ld; \
+    make -j"$(nproc)" all-gcc all-target-libgcc; \
+    make install-gcc install-target-libgcc
+
+RUN set -eux; \
+    autoconf --version; \
+    autoreconf --version; \
+    rm -rf /build/build-newlib; \
+    mkdir -p /build/build-newlib; \
+    cd /build/build-newlib; \
+    "/build/newlib-${NEWLIB_VERSION}/configure" \
+        --target="${TARGET}" \
+        --prefix="${PREFIX}" \
+        --disable-multilib; \
+    make -j"$(nproc)"; \
+    make install; \
+    strip --strip-unneeded ${PREFIX}/bin/* || true; \
+    strip --strip-debug ${PREFIX}/${TARGET}/lib/*.a || true
+
+FROM builder AS tester
+
+COPY boards/score-elf.exp /usr/share/dejagnu/baseboards/score-elf.exp
+
+RUN echo "set target_alias score-elf" > /usr/share/dejagnu/site.exp; \
+    cp /usr/share/dejagnu/baseboards/score-elf.exp \
+       /usr/share/dejagnu/baseboards/score-unknown-elf.exp;
+
+RUN set -eux; \
+    apk add --no-cache \
+    dejagnu \
+    expect \
+    tcl;
+
+WORKDIR /build/build-gcc-stage1
+
+CMD ["sh", "-c", "make check-gcc RUNTESTFLAGS='--target_board=score-elf' && cp gcc/testsuite/gcc/gcc.sum /out/"]
+
+FROM alpine:3.23.3 AS runtime-base
+
+ENV PATH=/opt/score-toolchain/bin:/usr/local/bin:${PATH}
+
+RUN apk add --no-cache \
+    bash-completion \
+    curl \
+    ca-certificates \
+    xz \
+    bzip2 \
+    gzip \
+    tar \
+    make \
+    cmake \
+    ninja-build \
+    python3 \
+    git \
+    automake \
+    file \
+    rsync \
+    vim \
+    less
+
+FROM runtime-base
+
+COPY --from=builder /opt/score-toolchain /opt/score-toolchain
+
+COPY bash-completion/score-elf-gcc.bash /etc/bash_completion.d/score-elf-gcc
 
 WORKDIR /workspace
-
-# Start container with sh
-CMD ["/bin/sh"]
+CMD ["/bin/bash"]
