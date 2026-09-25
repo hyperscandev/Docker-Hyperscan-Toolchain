@@ -1,3 +1,5 @@
+#define _FP_CHOOSENAN(fs, wc, R, X, Y, OP)                    \
+	do {                                                    \\
 diff --git a/config.sub b/config.sub
 index 38f3d037a..800d4e50c 100755
 --- config.sub
@@ -14,14 +16,9 @@ diff --git a/gcc/config.gcc b/gcc/config.gcc
 index 9b616bd6e..db5aa6913 100644
 --- gcc/config.gcc
 +++ gcc/config.gcc
-@@ -274,6 +274,7 @@ esac
+@@ -284,1 +284,2 @@
  case ${target} in
-      ia64*-*-hpux* | ia64*-*-*vms* | ia64*-*-elf*	\
-    | nios2*-*-*				\
-+   | score-*				\
-  )
-     if test "x$enable_obsolete" != xyes; then
-       echo "*** Configuration ${target} is obsolete." >&2
++  score-* | \
 @@ -578,6 +579,10 @@ sparc*-*-*)
  	d_target_objs="sparc-d.o"
  	extra_headers="visintrin.h"
@@ -662,7 +659,7 @@ new file mode 100644
 index 000000000..9ad160849
 --- /dev/null
 +++ gcc/config/score/score.cc
-@@ -0,0 +1,2077 @@
+@@ -0,0 +1,2089 @@
 +/* Output routines for Sunplus S+CORE processor
 +   Copyright (C) 2005-2014 Free Software Foundation, Inc.
 +   Contributed by Sunnorth.
@@ -816,6 +813,9 @@ index 000000000..9ad160849
 +
 +#undef TARGET_ASM_SELECT_RTX_SECTION
 +#define TARGET_ASM_SELECT_RTX_SECTION   score_select_rtx_section
++
++#undef TARGET_SECTION_TYPE_FLAGS
++#define TARGET_SECTION_TYPE_FLAGS       score_section_type_flags
 +
 +#undef  TARGET_IN_SMALL_DATA_P
 +#define TARGET_IN_SMALL_DATA_P          score_in_small_data_p
@@ -1127,9 +1127,6 @@ index 000000000..9ad160849
 +      info->reg = XEXP (x, 0);
 +      info->offset = GEN_INT (GET_MODE_SIZE (mode));
 +      return score_valid_base_register_p (info->reg, strict);
-+    case CONST_INT:
-+      info->type = SCORE_ADD_CONST_INT;
-+      return IMM_IN_RANGE (INTVAL (x), 15, 1);
 +    case CONST:
 +    case LABEL_REF:
 +    case SYMBOL_REF:
@@ -1378,6 +1375,18 @@ index 000000000..9ad160849
 +    return get_named_section (0, ".data.rel.ro", 3);
 +  else
 +    return mergeable_constant_section (mode, align, 0);
++}
++
++static unsigned int
++score_section_type_flags (tree decl, const char *name, int reloc)
++{
++  unsigned int flags = default_section_type_flags (decl, name, reloc);
++
++  if (strcmp (name, ".rodata") == 0
++      || startswith (name, ".rodata."))
++    flags &= ~SECTION_WRITE;
++
++  return flags;
 +}
 +
 +/* Implement TARGET_IN_SMALL_DATA_P.  */
@@ -2769,14 +2778,14 @@ index 000000000..fa924a74b
 +#include "score-conv.h"
 +
 +#undef CC1_SPEC
-+#define CC1_SPEC                 "%{!meb:-mel} %{meb:-meb } \
++#define CC1_SPEC                 "%{!mel:%{!meb:-mel}} %{mel:-mel} %{meb:-meb} \
 +%{!mscore*:-mscore7}    \
 +%{mscore7:-mscore7}     \
 +%{mscore7d:-mscore7d}   \
 +%{G*}"
 +
 +#undef ASM_SPEC
-+#define ASM_SPEC                 "%{!meb:-EL} %{meb:-EB} \
++#define ASM_SPEC                 "%{!mel:%{!meb:-EL}} %{mel:-EL} %{meb:-EB} %{O0:-O0} \
 +%{!mscore*:-march=score7}         \
 +%{mscore7:-march=score7}          \
 +%{mscore7d:-march=score7}         \
@@ -2785,7 +2794,7 @@ index 000000000..fa924a74b
 +%{G*}"
 +
 +#undef LINK_SPEC
-+#define LINK_SPEC                "%{!meb:-EL} %{meb:-EB} \
++#define LINK_SPEC                "%{!mel:%{!meb:-EL}} %{mel:-EL} %{meb:-EB} \
 +%{!mscore*:-mscore7_elf}          \
 +%{mscore7:-mscore7_elf}           \
 +%{mscore7d:-mscore7_elf}          \
@@ -5517,3 +5526,263 @@ index 06fae1545..05e141c34 100644
  sh-*-elf* | sh[12346l]*-*-elf*)
  	tmake_file="$tmake_file sh/t-sh t-crtstuff-pic t-softfp-sfdf t-softfp"
  	extra_parts="$extra_parts crt1.o crti.o crtn.o crtbeginS.o crtendS.o \
+diff --git a/libgcc/config/score/crti.S b/libgcc/config/score/crti.S
+new file mode 100644
+index 000000000..a937179f621
+--- /dev/null
++++ libgcc/config/score/crti.S
+@@ -0,0 +1,131 @@
++# crti.S for Sunplus S+CORE
++#
++#   Copyright (C) 2005-2024 Free Software Foundation, Inc.
++#
++# This file is free software; you can redistribute it and/or modify it
++# under the terms of the GNU General Public License as published by the
++# Free Software Foundation; either version 3, or (at your option) any
++# later version.
++#
++# This file is distributed in the hope that it will be useful, but
++# WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++# General Public License for more details.
++#
++# Under Section 7 of GPL version 3, you are granted additional
++# permissions described in the GCC Runtime Library Exception, version
++# 3.1, as published by the Free Software Foundation.
++#
++# You should have received a copy of the GNU General Public License and
++# a copy of the GCC Runtime Library Exception along with this program;
++# see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
++# <http://www.gnu.org/licenses/>.
++
++# This file makes a stack frame for the contents of the .init and
++# .fini sections.
++.extern _stack
++
++#ifndef __pic__
++.section .init, "ax", @progbits
++        .weak   _start
++        .ent    _start
++        .frame  r0, 0, r3, 0
++        .mask   0x00000000, 0
++_start:
++        la      r28, _gp
++        la      r8, __bss_start
++        la      r9, __bss_end__
++        sub!    r9, r8
++        srli!   r9, 2
++        addi    r9, -1
++        mtsr    r9, sr0
++        li      r9, 0
++1:
++        sw      r9, [r8]+, 4
++        bcnz    1b
++        la      r0, _stack
++        jl      _init
++        la      r4, _end
++        jl      _init_argv
++        jl      exit
++        .end    _start
++
++        .weak   _init_argv
++        .ent
++        .frame  r0, 0, r3, 0
++        .mask   0x00000000, 0
++_init_argv:
++        ldiu!   r4, 0
++        ldiu!   r5, 0
++        j       main
++        .end    _init_argv
++
++        .globl  _init
++        .type   _init, %function
++_init:
++        addi    r0, -32
++        sw      r3, [r0, 20]
++
++        .section .fini, "ax", @progbits
++        .globl  _fini
++        .type   _fini, %function
++_fini:
++        addi    r0, -32
++        sw      r3, [r0, 20]
++#else
++.section .init, "ax", @progbits
++        .set    pic
++        .weak   _start
++        .ent    _start
++        .frame  r0, 0, r3, 0
++        .mask   0x00000000, 0
++_start:
++        mv      r29, r3
++        bl      0f
++0:
++        .cpload r3
++        mv      r3, r29
++        la      r8, __bss_start
++        la      r9, __bss_end__
++        sub!    r9, r8
++        srli!   r9, 2
++        addi    r9, -1
++        mtsr    r9, sr0
++        li      r9, 0
++1:
++        sw      r9, [r8]+, 4
++        bcnz    1b
++        la      r0, _stack
++        bl      _init
++        la      r4, _end
++        la      r29, _init_argv
++        brl     r29
++        la      r29, exit
++        brl     r29
++        .end    _start
++
++        .weak   _init_argv
++        .ent _init_argv
++        .frame  r0, 0, r3, 0
++        .mask   0x00000000, 0
++_init_argv:
++        ldiu!   r4, 0
++        ldiu!   r5, 0
++        la      r29, main
++        brl     r29
++        .end    _init_argv
++
++        .globl  _init
++        .type   _init, %function
++_init:
++        addi    r0, -32
++        sw      r3, [r0, 20]
++
++        .section .fini, "ax", @progbits
++        .globl  _fini
++        .type   _fini, %function
++_fini:
++        addi    r0, -32
++        sw      r3, [r0, 20]
++
++#endif
+diff --git a/libgcc/config/score/crtn.S b/libgcc/config/score/crtn.S
+new file mode 100644
+index 000000000..3dab98265ed
+--- /dev/null
++++ libgcc/config/score/crtn.S
+@@ -0,0 +1,50 @@
++# crtn.S for Sunplus S+CORE
++
++#   Copyright (C) 2005-2024 Free Software Foundation, Inc.
++#
++# This file is free software; you can redistribute it and/or modify it
++# under the terms of the GNU General Public License as published by the
++# Free Software Foundation; either version 3, or (at your option) any
++# later version.
++#
++# This file is distributed in the hope that it will be useful, but
++# WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++# General Public License for more details.
++#
++# Under Section 7 of GPL version 3, you are granted additional
++# permissions described in the GCC Runtime Library Exception, version
++# 3.1, as published by the Free Software Foundation.
++#
++# You should have received a copy of the GNU General Public License and
++# a copy of the GCC Runtime Library Exception along with this program;
++# see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
++# <http://www.gnu.org/licenses/>.
++
++# This file makes sure that the .init and .fini sections do in
++# fact return.
++
++#ifndef __pic__
++.section .init, "ax", @progbits
++        lw      r3, [r0, 20]
++        addi    r0, 32
++        br      r3
++
++.section .fini, "ax", @progbits
++        lw      r3, [r0, 20]
++        addi    r0, 32
++        br      r3
++#else
++        .set    pic
++.section .init, "ax", @progbits
++        lw      r3, [r0, 20]
++        addi    r0, 32
++        br      r3
++
++        .set    pic
++.section .fini, "ax", @progbits
++        lw      r3, [r0, 20]
++        addi    r0, 32
++        br      r3
++#endif
++
+diff --git a/libgcc/config/score/sfp-machine.h b/libgcc/config/score/sfp-machine.h
+new file mode 100644
+index 000000000..6394de30b77
+--- /dev/null
++++ libgcc/config/score/sfp-machine.h
+@@ -0,0 +1,61 @@
++#define _FP_W_TYPE_SIZE		32
++#define _FP_W_TYPE		unsigned long
++#define _FP_WS_TYPE		signed long
++#define _FP_I_TYPE		long
++
++/* The type of the result of a floating point comparison.  This must
++   match `__libgcc_cmp_return__' in GCC for the target.  */
++typedef int __gcc_CMPtype __attribute__ ((mode (__libgcc_cmp_return__)));
++#define CMPtype __gcc_CMPtype
++
++#define _FP_MUL_MEAT_S(R,X,Y)				\
++  _FP_MUL_MEAT_1_wide(_FP_WFRACBITS_S,R,X,Y,umul_ppmm)
++#define _FP_MUL_MEAT_D(R,X,Y)				\
++  _FP_MUL_MEAT_2_wide(_FP_WFRACBITS_D,R,X,Y,umul_ppmm)
++#define _FP_MUL_MEAT_Q(R,X,Y)				\
++  _FP_MUL_MEAT_4_wide(_FP_WFRACBITS_Q,R,X,Y,umul_ppmm)
++
++#define _FP_DIV_MEAT_S(R,X,Y)	_FP_DIV_MEAT_1_loop(S,R,X,Y)
++#define _FP_DIV_MEAT_D(R,X,Y)	_FP_DIV_MEAT_2_udiv(D,R,X,Y)
++#define _FP_DIV_MEAT_Q(R,X,Y)	_FP_DIV_MEAT_4_udiv(Q,R,X,Y)
++
++#define _FP_NANFRAC_S		((_FP_QNANBIT_S << 1) - 1)
++#define _FP_NANFRAC_D		((_FP_QNANBIT_D << 1) - 1), -1
++#define _FP_NANFRAC_Q		((_FP_QNANBIT_Q << 1) - 1), -1, -1, -1
++#define _FP_NANSIGN_S		0
++#define _FP_NANSIGN_D		0
++#define _FP_NANSIGN_Q		0
++
++#define _FP_KEEPNANFRACP 1
++#define _FP_QNANNEGATEDP 0
++
++/* Someone please check this.  */
++#define _FP_CHOOSENAN(fs, wc, R, X, Y, OP)			\
++  do { \
++    if ((_FP_FRAC_HIGH_RAW_##fs(X) & _FP_QNANBIT_##fs)		\
++	&& !(_FP_FRAC_HIGH_RAW_##fs(Y) & _FP_QNANBIT_##fs))	\
++      { \
++	R##_s = Y##_s; \
++	_FP_FRAC_COPY_##wc(R,Y); \
++      } \
++    else \
++      { \
++	R##_s = X##_s; \
++	_FP_FRAC_COPY_##wc(R,X); \
++      } \
++    R##_c = FP_CLS_NAN; \
++  } while (0)
++
++/* Not checked.  */
++#define _FP_TININESS_AFTER_ROUNDING 0
++
++#define	__LITTLE_ENDIAN	1234
++#define	__BIG_ENDIAN	4321
++
++# define __BYTE_ORDER __BIG_ENDIAN
++
++/* Define ALIASNAME as a strong alias for NAME.  */
++# define strong_alias(name, aliasname) _strong_alias(name, aliasname)
++# define _strong_alias(name, aliasname) \
++  extern __typeof (name) aliasname __attribute__ ((alias (#name)));
++
