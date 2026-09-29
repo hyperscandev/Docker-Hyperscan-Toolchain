@@ -1,7 +1,7 @@
-FROM alpine:3.23.3 AS builder-base
+FROM alpine:3.24.2 AS builder-base
 
-ARG BINUTILS_VERSION=2.46.0
-ARG GCC_VERSION=14.3.0
+ARG BINUTILS_VERSION=2.47
+ARG GCC_VERSION=16.2.0
 ARG NEWLIB_VERSION=4.6.0.20260123
 
 ENV TARGET=score-elf \
@@ -162,7 +162,7 @@ WORKDIR /build/build-gcc-stage1
 
 CMD ["sh", "-c", "make check-gcc RUNTESTFLAGS='--target_board=score-elf' && cp gcc/testsuite/gcc/gcc.sum /out/"]
 
-FROM alpine:3.23.3 AS runtime-base
+FROM alpine:3.24.2 AS runtime-base
 
 ENV PATH=/opt/score-toolchain/bin:/usr/local/bin:${PATH}
 
