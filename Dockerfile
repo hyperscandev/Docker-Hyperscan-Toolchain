@@ -140,9 +140,40 @@ RUN set -eux; \
         --prefix="${PREFIX}" \
         --disable-multilib; \
     make -j"$(nproc)"; \
+    make install;
+
+RUN set -eux; \
+    mkdir -p /build/build-gcc-stage2; \
+    cd /build/build-gcc-stage2; \
+    ../gcc-${GCC_VERSION}/configure \
+        --target="${TARGET}" \
+        --prefix="${PREFIX}" \
+        --with-sysroot=${PREFIX}/${TARGET} \
+        --with-newlib \
+        --enable-obsolete \
+        --disable-libada \
+        --disable-libgomp \
+        --disable-libmudflap \
+        --disable-libssp \
+        --disable-libatomic \
+        --disable-libitm \
+        --disable-libsanitizer \
+        --disable-libquadmath \
+        --disable-threads \
+        --disable-multilib \
+        --disable-target-zlib \
+        --with-system-zlib \
+        --disable-shared \
+        --disable-nls \
+        --disable-lto \
+        --disable-libstdcxx-pch \
+        --enable-languages=c,c++ \
+        --with-gnu-as \
+        --with-gnu-ld; \
+    make -j"$(nproc)"; \
     make install; \
-    strip --strip-unneeded ${PREFIX}/bin/* || true; \
-    strip --strip-debug ${PREFIX}/${TARGET}/lib/*.a || true
+    strip --strip-unneeded ${PREFIX}/bin/*; \
+    ${TARGET}-strip --strip-debug ${PREFIX}/${TARGET}/lib/*.a;
 
 FROM builder AS tester
 
