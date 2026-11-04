@@ -214,7 +214,8 @@ RUN apk add --no-cache \
     file \
     rsync \
     vim \
-    less
+    less \
+    zlib
 
 FROM runtime-base
 
