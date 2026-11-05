@@ -189,7 +189,7 @@ RUN set -eux; \
     expect \
     tcl;
 
-WORKDIR /build/build-gcc-stage1
+WORKDIR /build/build-gcc-stage2
 
 CMD ["sh", "-c", "make check-gcc RUNTESTFLAGS='--target_board=score-elf' && cp gcc/testsuite/gcc/gcc.sum /out/"]
 
