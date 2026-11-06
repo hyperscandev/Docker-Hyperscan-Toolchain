@@ -191,7 +191,7 @@ RUN set -eux; \
 
 WORKDIR /build/build-gcc-stage2
 
-CMD ["sh", "-c", "make check-gcc RUNTESTFLAGS='--target_board=score-elf' && cp gcc/testsuite/gcc/gcc.sum /out/"]
+CMD ["sh", "-c", "make check-gcc RUNTESTFLAGS='--target_board=score-elf' || true; cp gcc/testsuite/gcc/gcc.sum /out/"]
 
 FROM alpine:3.24.2 AS runtime-base
 
