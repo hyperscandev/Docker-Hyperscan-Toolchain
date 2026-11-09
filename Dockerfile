@@ -42,8 +42,9 @@ RUN apk add --no-cache \
     less
 
 # Force unversioned autotools commands to use 2.69.
-RUN curl -O http://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.gz; \
-    tar zxvf autoconf-2.69.tar.gz; \
+RUN set -eux; \
+    curl -L --fail https://ftp.gnu.org/gnu/autoconf/autoconf-2.69.tar.gz -o autoconf.tar.gz; \
+    tar xf autoconf.tar.gz; \
     cd autoconf-2.69; \
     ./configure; \
     make; \
