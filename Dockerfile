@@ -47,7 +47,7 @@ RUN set -eux; \
     tar xf autoconf.tar.gz; \
     cd autoconf-2.69; \
     ./configure; \
-    make; \
+    make -j"$(nproc)"; \
     make install
 
 FROM builder-base AS builder
