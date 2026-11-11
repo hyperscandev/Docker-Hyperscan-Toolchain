@@ -1,9 +1,6 @@
 {
   "name": "score-toolchain",
-  "build": {
-    "dockerfile": "../Dockerfile",
-    "context": ".."
-  },
+  "image": "scoredevcommunity/score-toolchain",
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
   "mounts": [
