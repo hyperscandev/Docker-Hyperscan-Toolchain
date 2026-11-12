@@ -4,7 +4,7 @@
   "workspaceFolder": "/workspace",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
   "mounts": [
-    "source=../score-sdk,target=/score-sdk,type=bind,consistency=cached"
+    "source=${localWorkspaceFolder}/../score-sdk,target=/score-sdk,type=bind,consistency=cached"
   ],
   "remoteEnv": {
     "PATH": "/opt/score-toolchain/bin:${containerEnv:PATH}"
