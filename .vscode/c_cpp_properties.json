@@ -9,7 +9,7 @@
       "cppStandard": "c++17",
       "includePath": [
         "${workspaceFolder}/**",
-        "/opt/score-toolchain/lib/gcc/score-elf/14.3.0/include",
+        "/opt/score-toolchain/lib/gcc/score-elf/16.2.0/include",
         "/opt/score-toolchain/score-elf/include"
       ]
     }
