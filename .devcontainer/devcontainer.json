@@ -6,9 +6,6 @@
   "mounts": [
     "source=${localWorkspaceFolder}/../score-sdk,target=/score-sdk,type=bind,consistency=cached"
   ],
-  "remoteEnv": {
-    "PATH": "/opt/score-toolchain/bin:${containerEnv:PATH}"
-  },
    "containerEnv": {
   "C_INCLUDE_PATH": "/score-sdk/include",
   "LIBRARY_PATH": "/score-sdk/libs"
